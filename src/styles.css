@@ -149,6 +149,25 @@ input:focus {
   cursor: default;
 }
 
+/* 不起眼的文字链接按钮（窗口页"员工忘 PIN"入口） */
+.btn-link {
+  font: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--green);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.reset-pin {
+  margin-top: 24px;
+}
+
+.reset-pin .id-row {
+  margin-top: 8px;
+}
+
 /* 订餐页的每天卡片 */
 .day-grid {
   display: grid;
@@ -365,6 +384,12 @@ input:focus {
 }
 
 .redeem-result.dup {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 2px solid var(--red);
+}
+
+.redeem-result.err {
   background: var(--red-bg);
   color: var(--red);
   border: 2px solid var(--red);

@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, serverNowDate } from '../api';
+import { api, isUnauthorized, serverNowDate } from '../api';
 import { addDays, formatLocalDate, mondayOf, weekdayName } from '../domain/dates';
 import { weeklyReport } from '../domain/summary';
 import type { Order } from '../domain/types';
 import { errorText } from '../messages';
+import { AdminGate } from './AdminGate';
 
 export default function ReportPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [err, setErr] = useState('');
   const [week, setWeek] = useState('');
+  const [needAuth, setNeedAuth] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -21,10 +24,14 @@ export default function ReportPage() {
         const weeks = [...new Set(r.orders.map((o) => mondayOf(o.date)))].sort().reverse();
         setWeek(weeks[0] ?? '');
       } catch (e) {
+        if (isUnauthorized(e)) {
+          setNeedAuth(true);
+          return;
+        }
         setErr(errorText(e));
       }
     })();
-  }, []);
+  }, [reloadKey]);
 
   const today = formatLocalDate(serverNowDate());
   const weeks = useMemo(
@@ -33,6 +40,17 @@ export default function ReportPage() {
   );
   const report = orders && week ? weeklyReport(orders, week, today) : null;
 
+  if (needAuth)
+    return (
+      <div className="page">
+        <AdminGate
+          onSaved={() => {
+            setNeedAuth(false);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      </div>
+    );
   if (err)
     return (
       <div className="page">

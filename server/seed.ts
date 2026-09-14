@@ -117,7 +117,7 @@ function buildSample(now: Date): Store {
   add(lisi, addDays(nextMonday, 3), 'A', 'active');
   add(wangwu, addDays(nextMonday, 1), 'A', 'active');
 
-  return { menus, orders };
+  return { menus, orders, secrets: {} };
 }
 
 const storeFile = new StoreFile(DATA_FILE);

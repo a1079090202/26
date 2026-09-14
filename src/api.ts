@@ -12,8 +12,36 @@ export class ApiError extends Error {
   }
 }
 
+/** 接口回了 401：需要管理密码 */
+export function isUnauthorized(e: unknown): boolean {
+  return e instanceof ApiError && e.code === 'unauthorized';
+}
+
+const ADMIN_TOKEN_KEY = 'shitang.adminToken';
+
+/** 管理密码存在浏览器里，管理接口请求时带上 */
+export function getAdminToken(): string {
+  try {
+    return localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setAdminToken(token: string): void {
+  try {
+    if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    /* 隐私模式存不上就算了 */
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, init);
+  const token = getAdminToken();
+  const headers = new Headers(init?.headers);
+  if (token) headers.set('X-Admin-Token', token);
+  const r = await fetch(path, { ...init, headers });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     throw new ApiError(
@@ -41,14 +69,28 @@ export interface StateResponse {
 
 export const api = {
   state: (from: string, to: string) => req<StateResponse>(`/api/state?from=${from}&to=${to}`),
-  mine: (name: string, empId: string) =>
-    req<{ orders: Order[] }>(`/api/mine?name=${encodeURIComponent(name)}&empId=${encodeURIComponent(empId)}`),
+  mine: (name: string, empId: string, pin: string) =>
+    req<{ orders: Order[] }>(
+      `/api/mine?name=${encodeURIComponent(name)}&empId=${encodeURIComponent(empId)}&pin=${encodeURIComponent(pin)}`,
+    ),
   report: (from: string, to: string) =>
     req<{ orders: Order[] }>(`/api/report?from=${from}&to=${to}`),
   saveMenu: (week: MenuWeek) => post<{ ok: true }>('/api/menu', { week }),
-  batch: (name: string, empId: string, ops: OrderOp[]) =>
-    post<{ ok: true; orders: Order[] }>('/api/orders/batch', { name, empId, ops }),
-  redeem: (code: string) => post<{ ok: true; order: Order }>('/api/redeem', { code }),
+  batch: (name: string, empId: string, pin: string, ops: OrderOp[]) =>
+    post<{ ok: true; orders: Order[] }>('/api/orders/batch', { name, empId, pin, ops }),
+  redeem: (code: string) => {
+    // 窗口高峰期不能卡死：8 秒没响应就当失败，页面亮红让操作员重试
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    return req<{ ok: true; order: Order }>('/api/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+  },
+  resetPin: (name: string, empId: string) =>
+    post<{ ok: true }>('/api/admin/reset-pin', { name, empId }),
 };
 
 /**

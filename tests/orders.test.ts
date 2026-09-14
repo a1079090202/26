@@ -31,6 +31,38 @@ describe('下单', () => {
     expect(b).toMatchObject({ ok: false, error: 'duplicate' });
   });
 
+  it('同一个人换个填法（工号填没填）也不能一天订两单', () => {
+    // 先填工号订了一单，再不填工号订同一天：还是同一个人，拦住
+    const withId = placeOrder([], [menu], { name: '张三', empId: 'E001' }, '2026-09-21', 'A', now);
+    if (!withId.ok) throw new Error('setup 失败');
+    const noId = placeOrder([withId.value], [menu], { name: '张三' }, '2026-09-21', 'B', now);
+    expect(noId).toMatchObject({ ok: false, error: 'duplicate' });
+
+    // 反过来：先不填工号，再填工号，同样拦住
+    const noIdFirst = placeOrder([], [menu], { name: '李四' }, '2026-09-21', 'A', now);
+    if (!noIdFirst.ok) throw new Error('setup 失败');
+    const withIdSecond = placeOrder(
+      [noIdFirst.value],
+      [menu],
+      { name: '李四', empId: 'E009' },
+      '2026-09-21',
+      'B',
+      now,
+    );
+    expect(withIdSecond).toMatchObject({ ok: false, error: 'duplicate' });
+  });
+
+  it('同名同姓、工号不同的两个人互不干扰；姓名不同也不误伤', () => {
+    const a = placeOrder([], [menu], { name: '张三', empId: 'E001' }, '2026-09-21', 'A', now);
+    if (!a.ok) throw new Error('setup 失败');
+    // 另一个张三，工号不同：是另一个人，可以订
+    const b = placeOrder([a.value], [menu], { name: '张三', empId: 'E002' }, '2026-09-21', 'B', now);
+    expect(b.ok).toBe(true);
+    // 姓名不同、都没填工号：不是同一个人
+    const c = placeOrder([a.value], [menu], { name: '李四' }, '2026-09-21', 'A', now);
+    expect(c.ok).toBe(true);
+  });
+
   it('没发布菜单的日期不能订', () => {
     const r = placeOrder([], [menu], { name: '张三' }, '2026-09-28', 'A', now);
     expect(r).toMatchObject({ ok: false, error: 'no_menu' });

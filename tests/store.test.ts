@@ -11,7 +11,7 @@ describe('本机数据文件', () => {
 
   it('文件不存在时返回空库', () => {
     const f = new StoreFile(path.join(dir, 'not-there', 'store.json'));
-    expect(f.load()).toEqual({ menus: [], orders: [] });
+    expect(f.load()).toEqual({ menus: [], orders: [], secrets: {} });
   });
 
   it('保存后能原样读回（目录不存在会自动建）', () => {
@@ -45,6 +45,7 @@ describe('本机数据文件', () => {
           updatedAt: '2026-09-17T02:00:00.000Z',
         },
       ],
+      secrets: {},
     };
     f.save(data);
     expect(f.load()).toEqual(data);

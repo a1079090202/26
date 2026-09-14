@@ -65,5 +65,6 @@ export function purgeOld(store: Store, today: ISODate, keepWeeks = 8): Store {
   return {
     menus: store.menus.filter((m) => m.id >= cutoffMonday),
     orders: store.orders.filter((o) => o.date >= cutoffMonday),
+    secrets: store.secrets,
   };
 }

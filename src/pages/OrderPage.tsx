@@ -11,7 +11,7 @@ export default function OrderPage() {
   const [menus, setMenus] = useState<MenuWeek[]>([]);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [edits, setEdits] = useState<Record<string, Choice | ''>>({});
-  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'warn'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -28,8 +28,8 @@ export default function OrderPage() {
         const st = await api.state(from, addDays(from, 11));
         syncClock(st.serverNow);
         setMenus(st.menus);
-        if (id?.name.trim()) {
-          const mine = await api.mine(id.name, id.empId);
+        if (id?.name.trim() && id.pin) {
+          const mine = await api.mine(id.name, id.empId, id.pin);
           setMyOrders(mine.orders);
           void myStore.saveMyOrders(mine.orders);
         }
@@ -60,14 +60,19 @@ export default function OrderPage() {
 
   async function lookup() {
     const name = identity.name.trim();
+    const pin = (identity.pin ?? '').trim();
     if (!name) {
       setMsg({ kind: 'err', text: '先填一下姓名' });
       return;
     }
+    if (!pin) {
+      setMsg({ kind: 'err', text: '填一下 PIN（第一次用就是设置，4-6 位数字）' });
+      return;
+    }
     try {
-      const mine = await api.mine(name, identity.empId.trim());
+      const mine = await api.mine(name, identity.empId.trim(), pin);
       setMyOrders(mine.orders);
-      void myStore.saveIdentity({ name, empId: identity.empId.trim() });
+      void myStore.saveIdentity({ name, empId: identity.empId.trim(), pin });
       void myStore.saveMyOrders(mine.orders);
       setEdits({});
       setMsg(
@@ -82,8 +87,13 @@ export default function OrderPage() {
 
   async function submit() {
     const name = identity.name.trim();
+    const pin = (identity.pin ?? '').trim();
     if (!name) {
       setMsg({ kind: 'err', text: '先填一下姓名，才能提交' });
+      return;
+    }
+    if (!pin) {
+      setMsg({ kind: 'err', text: '填一下 PIN（第一次用就是设置，4-6 位数字）' });
       return;
     }
     setBusy(true);
@@ -91,20 +101,51 @@ export default function OrderPage() {
     try {
       const now = serverNowDate();
       const sel: Record<string, Choice | ''> = {};
+      // 页面开着跨过了 15:00：渲染时还可订的天，提交时可能已截止。
+      // 这些天的改动不能悄悄丢掉——挑出来，明确告诉用户哪几天没提交。
+      const dropped: string[] = [];
       for (const d of days) {
-        if (!isLocked(d.date, now)) sel[d.date] = choiceOf(d.date);
+        if (isLocked(d.date, now)) {
+          if (choiceOf(d.date) !== (orderOf(d.date)?.choice ?? '')) dropped.push(d.date);
+        } else {
+          sel[d.date] = choiceOf(d.date);
+        }
       }
+      const droppedText = dropped.length
+        ? `${dropped.map((dt) => `${dt.slice(5)}（${weekdayName(dt)}）`).join('、')}已过截止，这几天的改动没有提交`
+        : '';
       const ops = planChanges(sel, myOrders);
       if (ops.length === 0) {
-        setMsg({ kind: 'ok', text: '没有改动' });
+        setMsg(
+          droppedText ? { kind: 'warn', text: droppedText } : { kind: 'ok', text: '没有改动' },
+        );
         return;
       }
-      const r = await api.batch(name, identity.empId.trim(), ops);
+      const r = await api.batch(name, identity.empId.trim(), pin, ops);
       setMyOrders(r.orders);
-      void myStore.saveIdentity({ name, empId: identity.empId.trim() });
+      void myStore.saveIdentity({ name, empId: identity.empId.trim(), pin });
       void myStore.saveMyOrders(r.orders);
       setEdits({});
-      setMsg({ kind: 'ok', text: '订好了！下面是你的取餐码，一天一个' });
+      // 反馈按实际执行的 订/改/退 说，干什么说什么
+      const placed = ops.filter((o) => o.type === 'place').length;
+      const changed = ops.filter((o) => o.type === 'change').length;
+      const cancelled = ops.filter((o) => o.type === 'cancel').length;
+      const parts: string[] = [];
+      if (placed) parts.push(`新订 ${placed} 天`);
+      if (changed) parts.push(`改 ${changed} 天`);
+      if (cancelled) parts.push(`退 ${cancelled} 天`);
+      let text: string;
+      if (placed && !changed && !cancelled) {
+        text = '订好了！取餐码在下面，一天一个';
+      } else if (changed && !placed && !cancelled) {
+        text = '改好了！取餐码不变';
+      } else if (cancelled && !placed && !changed) {
+        text = '退好了！';
+      } else {
+        text = `提交好了：${parts.join('、')}${placed ? '。取餐码在下面，一天一个' : ''}`;
+      }
+      if (droppedText) text += `。注意：${droppedText}`;
+      setMsg({ kind: droppedText ? 'warn' : 'ok', text });
     } catch (e) {
       setMsg({ kind: 'err', text: errorText(e) });
     } finally {
@@ -137,11 +178,23 @@ export default function OrderPage() {
               onChange={(e) => setIdentity({ ...identity, empId: e.target.value })}
             />
           </label>
+          <label>
+            PIN
+            <input
+              type="password"
+              inputMode="numeric"
+              value={identity.pin ?? ''}
+              placeholder="4-6 位数字"
+              onChange={(e) => setIdentity({ ...identity, pin: e.target.value })}
+            />
+          </label>
           <button className="btn" onClick={() => void lookup()}>
             查我的订单
           </button>
         </div>
-        <p className="hint">认人规则：填了工号认工号，没填认姓名。每次填一样的就行。</p>
+        <p className="hint">
+          认人规则：填了工号认工号，没填认姓名，每次填一样的就行。PIN 第一次用就是设置，以后查订单、订餐都要它；忘了找窗口重置。
+        </p>
       </section>
 
       <section>
@@ -204,7 +257,7 @@ export default function OrderPage() {
             {busy ? '提交中…' : '提交订餐'}
           </button>
         )}
-        {msg && <p className={msg.kind === 'ok' ? 'msg-ok' : 'msg-err'}>{msg.text}</p>}
+        {msg && <p className={`msg-${msg.kind}`}>{msg.text}</p>}
       </section>
 
       <section className="card">

@@ -22,27 +22,38 @@ function openDb(): Promise<IDBDatabase> {
 
 async function idbGet<T>(key: string): Promise<T | undefined> {
   const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const r = tx.objectStore(STORE).get(key);
-    r.onsuccess = () => resolve(r.result as T | undefined);
-    r.onerror = () => reject(r.error);
-  });
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const r = tx.objectStore(STORE).get(key);
+      r.onsuccess = () => resolve(r.result as T | undefined);
+      r.onerror = () => reject(r.error);
+    });
+  } finally {
+    // 用完就关：页面一开一整天，只开不关连接会越积越多
+    db.close();
+  }
 }
 
 async function idbSet(key: string, value: unknown): Promise<void> {
   const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export interface Identity {
   name: string;
   empId: string;
+  /** 取餐 PIN。存在员工自己电脑上，下次打开不用重输；共用电脑要注意 */
+  pin?: string;
 }
 
 export const myStore = {

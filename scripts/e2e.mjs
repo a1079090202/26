@@ -68,6 +68,7 @@ try {
   await page.goto(`${BASE}/#/`);
   await page.locator('.id-row input').first().fill('钱七');
   await page.locator('.id-row input').nth(1).fill('E100');
+  await page.locator('.id-row input').nth(2).fill('1234'); // 首次订餐即设置 PIN
   const openCards = page.locator('.day-card:not(.locked)');
   await openCards.first().waitFor({ state: 'visible', timeout: 5000 });
   const cardCount = await openCards.count();

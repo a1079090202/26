@@ -14,7 +14,14 @@
       "Bash(curl -s 'http://localhost:8123/api/report?from=2026-09-07&to=2026-09-11')",
       "Bash(python3 -c ' *)",
       "Bash(npx playwright *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(git -C /workspace ls-files)",
+      "Bash(npx vitest *)",
+      "Bash(git -C /workspace diff --stat)",
+      "Bash(git -C /workspace status --short)",
+      "Bash(apt-get install *)",
+      "Bash(git -C /workspace status --short tests/)",
+      "Bash(git -C /workspace diff server/server.ts)"
     ]
   }
 }

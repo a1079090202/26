@@ -41,7 +41,15 @@ export interface Order {
   redeemedAt?: string;
 }
 
+/** 某人的取餐 PIN：只存哈希，不存明文 */
+export interface PersonSecret {
+  salt: string;
+  hash: string;
+}
+
 export interface Store {
   menus: MenuWeek[];
   orders: Order[];
+  /** 键是 personKey（"E:工号" 或 "N:姓名"），值是 PIN 哈希 */
+  secrets: Record<string, PersonSecret>;
 }

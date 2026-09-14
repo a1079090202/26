@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError, serverNowDate, syncClock } from '../api';
+import { api, ApiError, isUnauthorized, serverNowDate, syncClock } from '../api';
 import { formatLocalDate, weekdayName } from '../domain/dates';
 import type { MenuWeek, Order } from '../domain/types';
 import { errorText } from '../messages';
+import { AdminGate } from './AdminGate';
 
 interface Result {
-  kind: 'ok' | 'dup' | 'warn';
+  kind: 'ok' | 'dup' | 'warn' | 'err';
   title: string;
   lines: string[];
 }
@@ -37,6 +38,11 @@ export default function RedeemPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [progress, setProgress] = useState<{ redeemed: number; total: number } | null>(null);
   const [menus, setMenus] = useState<MenuWeek[]>([]);
+  const [needAuth, setNeedAuth] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [resetId, setResetId] = useState({ name: '', empId: '' });
+  const [resetMsg, setResetMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
 
@@ -68,6 +74,9 @@ export default function RedeemPage() {
   async function submit(c: string) {
     if (busyRef.current) return;
     busyRef.current = true;
+    setBusy(true);
+    // 核销进行中，屏幕上绝不能残留上一单的"放行"信号
+    setResult(null);
     try {
       const r = await api.redeem(c);
       const o = r.order;
@@ -78,6 +87,11 @@ export default function RedeemPage() {
       });
       beep(true);
     } catch (e) {
+      if (isUnauthorized(e)) {
+        setNeedAuth(true);
+        beep(false);
+        return;
+      }
       if (e instanceof ApiError) {
         const order = (e.data as { order?: Order } | undefined)?.order;
         if (e.code === 'already_redeemed') {
@@ -111,10 +125,18 @@ export default function RedeemPage() {
         } else {
           setResult({ kind: 'warn', title: '出错了', lines: [errorText(e)] });
         }
-        beep(false);
+      } else {
+        // 网络断了/超时/服务没开：必须亮红灯，绝不能无声吞掉
+        setResult({
+          kind: 'err',
+          title: '没核销上！',
+          lines: ['连不上服务（网络断了或服务没开）', '这份还没核销——确认服务恢复后重输这个码'],
+        });
       }
+      beep(false);
     } finally {
       busyRef.current = false;
+      setBusy(false);
       setCode('');
       inputRef.current?.focus();
       void loadProgress();
@@ -126,6 +148,32 @@ export default function RedeemPage() {
     setCode(v);
     if (result) setResult(null);
     if (v.length === 6) void submit(v);
+  }
+
+  async function resetPin() {
+    const name = resetId.name.trim();
+    if (!name) {
+      setResetMsg({ kind: 'err', text: '填一下员工姓名' });
+      return;
+    }
+    try {
+      await api.resetPin(name, resetId.empId.trim());
+      setResetMsg({ kind: 'ok', text: `${name} 的 PIN 已重置，让 TA 下次订餐或查询时重新设一个` });
+    } catch (e) {
+      if (isUnauthorized(e)) {
+        setNeedAuth(true);
+        return;
+      }
+      setResetMsg({ kind: 'err', text: errorText(e) });
+    }
+  }
+
+  if (needAuth) {
+    return (
+      <div className="page">
+        <AdminGate onSaved={() => setNeedAuth(false)} />
+      </div>
+    );
   }
 
   return (
@@ -147,9 +195,12 @@ export default function RedeemPage() {
         autoComplete="off"
         placeholder="输 6 位取餐码"
         value={code}
+        disabled={busy}
         onChange={onChange}
       />
-      {result ? (
+      {busy ? (
+        <p className="hint">核销中…</p>
+      ) : result ? (
         <div className={`redeem-result ${result.kind}`}>
           <div className="redeem-title">{result.title}</div>
           {result.lines.map((l, i) => (
@@ -159,6 +210,34 @@ export default function RedeemPage() {
       ) : (
         <p className="hint">输满 6 位自动核销。绿色放行；红色是取过的，别给餐。</p>
       )}
+      <div className="reset-pin">
+        <button className="btn-link" onClick={() => setShowReset(!showReset)}>
+          员工忘 PIN？{showReset ? '收起' : ''}
+        </button>
+        {showReset && (
+          <div className="id-row">
+            <label>
+              姓名
+              <input
+                value={resetId.name}
+                onChange={(e) => setResetId({ ...resetId, name: e.target.value })}
+              />
+            </label>
+            <label>
+              工号
+              <input
+                value={resetId.empId}
+                placeholder="他当时填了就填"
+                onChange={(e) => setResetId({ ...resetId, empId: e.target.value })}
+              />
+            </label>
+            <button className="btn" onClick={() => void resetPin()}>
+              重置 PIN
+            </button>
+          </div>
+        )}
+        {resetMsg && <p className={resetMsg.kind === 'ok' ? 'msg-ok' : 'msg-err'}>{resetMsg.text}</p>}
+      </div>
     </div>
   );
 }

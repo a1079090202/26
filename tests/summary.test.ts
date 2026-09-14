@@ -82,6 +82,7 @@ describe('8 周留存', () => {
         makeOrder({ date: '2026-07-20', code: '400002' }), // 正好 8 周前的周一，保留
         makeOrder({ date: '2026-09-14', code: '400003' }),
       ],
+      secrets: {},
     };
     const kept = purgeOld(store, today, 8);
     expect(kept.menus.map((m) => m.id)).toEqual(['2026-07-20', '2026-09-14']);

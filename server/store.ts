@@ -10,11 +10,12 @@ export class StoreFile {
   constructor(private readonly file: string) {}
 
   load(): Store {
-    if (!existsSync(this.file)) return { menus: [], orders: [] };
+    if (!existsSync(this.file)) return { menus: [], orders: [], secrets: {} };
     const raw = readFileSync(this.file, 'utf8');
-    if (!raw.trim()) return { menus: [], orders: [] };
+    if (!raw.trim()) return { menus: [], orders: [], secrets: {} };
     const data = JSON.parse(raw) as Partial<Store>;
-    return { menus: data.menus ?? [], orders: data.orders ?? [] };
+    // 老数据文件没有 secrets 字段，按空处理
+    return { menus: data.menus ?? [], orders: data.orders ?? [], secrets: data.secrets ?? {} };
   }
 
   save(store: Store): void {

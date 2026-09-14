@@ -18,6 +18,19 @@ export function personKeyOf(name: string, empId?: string): string {
   return id ? `E:${id}` : `N:${name.trim()}`;
 }
 
+/**
+ * 下单查重用的"同一个人"判定：personKey 相同肯定是同一个人；
+ * 一边填了工号一边没填、但姓名相同的，也按同一个人算——
+ * 否则同一个人"一次填工号一次不填"就是两个身份，一天能订两单。
+ * 两边都填了工号而且不一样 → 明确的两个人（同名同姓各订各的），不算。
+ */
+function isSamePerson(o: Order, who: Orderer, personKey: string): boolean {
+  if (o.personKey === personKey) return true;
+  const empId = (who.empId ?? '').trim();
+  if (empId && o.empId && o.empId !== empId) return false;
+  return o.name === who.name.trim();
+}
+
 export type OrderError = 'no_menu' | 'locked' | 'duplicate' | 'not_found';
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: OrderError };
@@ -51,7 +64,7 @@ export function placeOrder(
   if (!day) return { ok: false, error: 'no_menu' };
   if (isLocked(date, now)) return { ok: false, error: 'locked' };
   const personKey = personKeyOf(who.name, who.empId);
-  if (orders.some((o) => o.personKey === personKey && o.date === date)) {
+  if (orders.some((o) => o.date === date && isSamePerson(o, who, personKey))) {
     return { ok: false, error: 'duplicate' };
   }
   const ts = now.toISOString();
