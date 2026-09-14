@@ -1,0 +1,37 @@
+{
+  "name": "shitang-dingcan",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "食堂订餐小系统：发菜单、订餐、取餐码核销、份数汇总、周报",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build",
+    "build:server": "esbuild server/server.ts server/seed.ts --bundle --platform=node --format=esm --outdir=server-build",
+    "start": "node server-build/server.js",
+    "seed": "npm run build:server && node server-build/seed.js",
+    "test": "vitest run",
+    "test:e2e": "node scripts/e2e.mjs",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
+    "playwright": "^1.63.0",
+    "typescript": "~5.6.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.0.5"
+  }
+}

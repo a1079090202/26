@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(rm -rf /tmp/shitang-e2e)",
+      "Bash(mkdir -p /tmp/shitang-e2e)",
+      "Bash(DATA_FILE=/tmp/shitang-e2e/store.json node server-build/seed.js)",
+      "Bash(PORT=8123 DATA_FILE=/tmp/shitang-e2e/store.json node *)",
+      "Bash(curl -s -o /dev/null -w '%{http_code} %{content_type}\\\\n' http://localhost:8123/)",
+      "Bash(curl -s 'http://localhost:8123/api/state?from=2026-09-14&to=2026-09-14')",
+      "Bash(echo *)",
+      "Bash(curl -s 'http://localhost:8123/api/report?from=2026-09-07&to=2026-09-11')",
+      "Bash(python3 -c ' *)",
+      "Bash(npx playwright *)",
+      "Bash(node *)"
+    ]
+  }
+}
